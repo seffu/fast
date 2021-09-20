@@ -1,11 +1,12 @@
 from fastapi import FastAPI,Depends,status,Response,HTTPException
 from sqlalchemy.orm import Session
 from . import schemas,models,database
+from  typing import List
+from passlib.context import CryptContext
 
 app = FastAPI()
 
 models.Base.metadata.create_all(database.engine)
-
 
 def get_db_session():
     db = database.SessionLocal()
@@ -23,12 +24,14 @@ def create(request:schemas.Blog,db:Session = Depends(get_db_session)):
     db.refresh(new_blog)
     return new_blog
 
-@app.get('/blogs')
+@app.get('/blogs',response_model=List[schemas.ShowBlog])
+# @app.get('/blogs')
 def all(db:Session = Depends(get_db_session)):
     blogs = db.query(models.Blog).all()
     return blogs
 
-@app.get('/blog/{id}',status_code=200)
+@app.get('/blog/{id}',status_code=200,response_model=schemas.ShowBlog)
+# @app.get('/blog/{id}',status_code=200)
 def show(id,response:Response,db:Session = Depends(get_db_session)):
     blog = db.query(models.Blog).filter(models.Blog.id == id).first()
     if not blog:
@@ -54,3 +57,14 @@ def update(id,request:schemas.Blog,db:Session = Depends(get_db_session)):
     blog.update(request)
     db.commit()
     return 'updated'
+
+pwd_cxt = CryptContext(schemes=['bcrypt'],deprecated='auto')
+
+@app.post('/user')
+def create_user(request:schemas.User,db:Session = Depends(get_db_session)):
+    hashedPassword = pwd_cxt.hash(request.password)
+    new_user = models.User(name=request.name,email=request.email,password=hashedPassword)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
