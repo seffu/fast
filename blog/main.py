@@ -1,8 +1,8 @@
 from fastapi import FastAPI,Depends,status,Response,HTTPException
 from sqlalchemy.orm import Session
-from . import schemas,models,database
+from . import schemas,models,database,hashing
 from  typing import List
-from passlib.context import CryptContext
+# from passlib.context import CryptContext
 
 app = FastAPI()
 
@@ -16,21 +16,21 @@ def get_db_session():
         db.close()
 
 # @app.post('/blogs',status_code=201)
-@app.post('/blogs',status_code=status.HTTP_201_CREATED)#status using the status package
+@app.post('/blogs',status_code=status.HTTP_201_CREATED,tags=["blogs"])#status using the status package
 def create(request:schemas.Blog,db:Session = Depends(get_db_session)):
-    new_blog = models.Blog(title=request.title,body=request.body)
+    new_blog = models.Blog(title=request.title,body=request.body,user_id=2)
     db.add(new_blog)
     db.commit()
     db.refresh(new_blog)
     return new_blog
 
-@app.get('/blogs',response_model=List[schemas.ShowBlog])
+@app.get('/blogs',response_model=List[schemas.ShowBlog],tags=["blogs"])
 # @app.get('/blogs')
 def all(db:Session = Depends(get_db_session)):
     blogs = db.query(models.Blog).all()
     return blogs
 
-@app.get('/blog/{id}',status_code=200,response_model=schemas.ShowBlog)
+@app.get('/blog/{id}',status_code=200,response_model=schemas.ShowBlog,tags=["blogs"])
 # @app.get('/blog/{id}',status_code=200)
 def show(id,response:Response,db:Session = Depends(get_db_session)):
     blog = db.query(models.Blog).filter(models.Blog.id == id).first()
@@ -40,7 +40,7 @@ def show(id,response:Response,db:Session = Depends(get_db_session)):
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND,detail='Does not exist')
     return blog
 
-@app.delete('/blog/{id}',status_code=status.HTTP_204_NO_CONTENT)
+@app.delete('/blog/{id}',status_code=status.HTTP_204_NO_CONTENT,tags=["blogs"])
 def destroy(id,response:Response,db:Session = Depends(get_db_session)):
     blog = db.query(models.Blog).filter(models.Blog.id == id)
     if not blog.first():
@@ -49,7 +49,7 @@ def destroy(id,response:Response,db:Session = Depends(get_db_session)):
     db.commit()
     return 'Complete'
 
-@app.put('/blog/{id}',status_code=status.HTTP_202_ACCEPTED)
+@app.put('/blog/{id}',status_code=status.HTTP_202_ACCEPTED,tags=["blogs"])
 def update(id,request:schemas.Blog,db:Session = Depends(get_db_session)):
     blog = db.query(models.Blog).filter(models.Blog.id == id)
     if not blog.first():
@@ -58,13 +58,24 @@ def update(id,request:schemas.Blog,db:Session = Depends(get_db_session)):
     db.commit()
     return 'updated'
 
-pwd_cxt = CryptContext(schemes=['bcrypt'],deprecated='auto')
+# pwd_cxt = CryptContext(schemes=['bcrypt'],deprecated='auto')
 
-@app.post('/user')
+@app.post('/user',response_model=schemas.ShowUser,tags=["users"])
 def create_user(request:schemas.User,db:Session = Depends(get_db_session)):
-    hashedPassword = pwd_cxt.hash(request.password)
-    new_user = models.User(name=request.name,email=request.email,password=hashedPassword)
+    # hashedPassword = pwd_cxt.hash(request.password)
+    # new_user = models.User(name=request.name,email=request.email,password=hashedPassword)
+    new_user = models.User(name=request.name,email=request.email,password=hashing.Hash.bcrypt(request.password))
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
+
+@app.get('/user/{id}',status_code=200,response_model=schemas.ShowUser,tags=["users"])
+# @app.get('/blog/{id}',status_code=200)
+def show_user(id,response:Response,db:Session = Depends(get_db_session)):
+    user = db.query(models.User).filter(models.User.id == id).first()
+    if not user:
+        # response.status_code = status.HTTP_404_NOT_FOUND
+        # return {'details':'Does not exist'}
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND,detail='Does not exist')
+    return user
